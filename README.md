@@ -1,36 +1,60 @@
-# Dept of Scrapyard Robotics Barometric Pressure Sensor Library
+Introduction
+============
 
-<p>Contains implementations for:</p>
-<ul>
-<li>BMP280</li>
-</ul>
+PHP Package for the BMP280 temperature and barometric pressure sensor.
 
-## Prerequisites
-<ul>
-<li>Single Board Computer with an exposed GPIO pinout.</li>
-or
-<li>Single Board Computer with exposed I2C panel.</li>
-or
-<li>Any Linux or MacOS PC with USB and a compatible USB-to-Serial device with I2C capability.</li>
-<li>PHP 8.3+</li>
-<li>Posi Extension v0.4.0+</li>
-or 
-<li>the FTDI Extension v0.4.0+</li>
-<li>ScrapyardIO Framework v0.4.0+</li>
-</ul>
+Contains implementations for:
+* BMP280
 
-## Installation
+Compatible I2C Interfaces
+===============
+The BMP280 communicates with your device over I2C, the InterIntegrated Circuit Protocol.
 
-Require with Composer
+You can interface with a BMP280 with this package the following ways:
+* A Linux Single-Board Computer's exposed GPIO pins using the dedicated I2C SDA/SCL pins
+* An MPSSE-enabled USB-to-Serial device such as an FT232H generally using D0 and SCL and D1 for SDA connected to nearly any Linux or MacOS USB port.
+
+Compatible SPI Interfaces
+===============
+The BMP280 also supports SPI for direct register communication.
+
+You can interface with a BMP280 over SPI with this package the following ways:
+* A Linux Single-Board Computer's exposed GPIO pins using the dedicated SPI MOSI/MISO/SCK and CS pins
+* An MPSSE-enabled USB-to-Serial device such as an FT232H generally using D0 and SCK, D1 for MOSI, D2 for MISO and D3 for CS connected to nearly any Linux or MacOS USB port.
+
+Dependencies
+=============
+This package makes use of modules within:
+* [The ScrapyardIO Framework](https://github.com/ScrapyardIO/framework)
+
+This package also requires one of the following extensions in order to interface with I2C/SPI
+* [POSI Extension v^0.4.0 or newer](https://github.com/php-io-extensions/posi)
+* [FTDI Extension v^0.4.0 or newer](https://github.com/php-io-extensions/ftdi)
+
+In addition, an extension wrapper package is needed
+
+For ext-posi
+* [Microscrap POSIX Package v0.4.0 or newer](https://github.com/microscrap/posix)
+* [Microscrap Native I2C Package v0.4.0 or newer](https://github.com/microscrap/i2c)
+* [Microscrap Native SPI Package v0.4.0 or newer](https://github.com/microscrap/spi)
+
+For ext-ftdi
+* [Microscrap FTDI Package v0.4.0 or newer](https://github.com/microscrap/ftdi)
+* [Microscrap MPSSE Package v0.4.0 or newer](https://github.com/microscrap/mpsse)
+
+Installing from Composer
+====================
+Inside the root of your PHP Project, simply require the BMP package from composer
 ```shell
 composer require dept-of-scrapyard-robotics/bmp
 ```
 
-## Preconfiguration
+Framework Configuration
+====================
 
-If you want to autoload sensor configuration details for quick fluent bootstrapping
-within the ScrapyardIO framework, add this snippet to your project's config/scrapyard-io.php
-file in the 'boards' key
+If you would like to use the ScrapyardIO Framework to bootstrap your sensor without
+wasting lines configuring your sensor right in the script you can add your desired
+configuration to scrapyard-io.php, such as in this example:
 
 ### I2C
 ```php
@@ -66,8 +90,8 @@ return [
 ];
 
 ```
-
-## Basic Usage
+Basic Usage
+============
 
 ### Native (POSIX) I2C driver. (Single Board Computers)
 ```php
@@ -78,8 +102,8 @@ $native_i2c_sensor = BMP280::connection('native')
     ->i2c(1, BMP280I2CAddress::SDO_GROUNDED->value)
     ->create()
     
-$temp_c = $native_i2c_sensor->temperature();
-$rh = $native_i2c_sensor->pressure();
+$temp_c = $native_i2c_sensor->temperature;
+$rh = $native_i2c_sensor->pressure;
 
 ```
 
@@ -92,8 +116,8 @@ $native_spi_sensor = BMP280::connection('native')
     ->spi(0, 0)
     ->create()
     
-$temp_c = $native_spi_sensor->temperature();
-$rh = $native_spi_sensor->pressure();
+$temp_c = $native_spi_sensor->temperature;
+$rh = $native_spi_sensor->pressure;
 
 ```
 
@@ -106,8 +130,8 @@ $usb_i2c_sensor = BMP280::connection('usb')
     ->i2c('ft232h', BMP280I2CAddress::SDO_GROUNDED->value)
     ->create()
     
-$temp_c = $usb_i2c_sensor->temperature();
-$rh = $usb_i2c_sensor->pressure();
+$temp_c = $usb_i2c_sensor->temperature;
+$rh = $usb_i2c_sensor->pressure;
 ```
 
 ### USB (MPSSE) driver using SPI. (Linux and MacOS)
@@ -119,8 +143,8 @@ $usb_i2c_sensor = BMP280::connection('usb')
     ->spi('ft232h', 0)
     ->create()
     
-$temp_c = $usb_i2c_sensor->temperature();
-$rh = $usb_i2c_sensor->pressure();
+$temp_c = $usb_i2c_sensor->temperature;
+$rh = $usb_i2c_sensor->pressure;
 ```
 
 ## Advanced Usage
