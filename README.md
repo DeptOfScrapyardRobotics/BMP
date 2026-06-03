@@ -65,7 +65,7 @@ use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280I2CAddress
 return [
     'boards' => [
         // For Native Configurations 
-        'bmp280' => [
+        'bmp280-native' => [
             'class_name' => BMP280::class,
             'connection' => ['driver' => 'native'],
             'startup' => [
@@ -76,7 +76,7 @@ return [
             ],
         ],
         // For USB Configurations
-        'adxl345' => [
+        'bmp280-usb' => [
             'class_name' => BMP280::class,
             'connection' => ['driver' => 'usb'],
             'startup' => [
@@ -90,6 +90,42 @@ return [
 ];
 
 ```
+
+### SPI
+```php
+
+use DeptOfScrapyardRobotics\Sensors\BMP\BMP280;
+use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280I2CAddress
+
+return [
+    'boards' => [
+        // For Native Configurations 
+        'bmp280-native' => [
+            'class_name' => BMP280::class,
+            'connection' => ['driver' => 'native'],
+            'startup' => [
+                'spi' => [
+                    'master' => 0,
+                    'chip_select' => 0,
+                ],
+            ],
+        ],
+        // For USB Configurations
+        'bmp280-native' => [
+            'class_name' => BMP280::class,
+            'connection' => ['driver' => 'usb'],
+            'startup' => [
+                'spi' => [
+                    'master' => 'ft232h',
+                    'chip_select' => 0,
+                ],
+            ],
+        ],        
+    ]
+];
+
+```
+
 Basic Usage
 ============
 
