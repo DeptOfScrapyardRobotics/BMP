@@ -8,6 +8,8 @@ use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280OpMode;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280Overscan;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280ReadRegister;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280StandbyTCS;
+use DeptOfScrapyardRobotics\Sensors\BMP\BMPException;
+use ValueError;
 
 trait BMP280API
 {
@@ -28,7 +30,7 @@ trait BMP280API
 
     public function softReset(): void
     {
-        $this->write(BMP280OpCode::SOFT_RESET_REGISTER, [$this->hardwired_reset_command]);
+        $this->write(BMP280OpCode::SOFT_RESET_REGISTER, [BMP280OpCode::SOFT_RESET->value]);
     }
 
     public function readCalibrationBlock(): array
@@ -183,6 +185,9 @@ trait BMP280API
         $this->sea_level_pressure = $value;
     }
 
+    /**
+     * @throws BMPException
+     */
     public function readPressure(): ?float
     {
         if ($this->overscan_pressure === BMP280Overscan::DISABLED->value) {
@@ -201,9 +206,7 @@ trait BMP280API
         $var1 = (1.0 + $var1 / 32768.0) * $this->calibration['P1'];
 
         if (! $var1) {
-            throw new \ArithmeticError(
-                'Invalid result possibly related to error while reading the calibration registers'
-            );
+            throw BMPException::invalidCalibrationResult();
         }
 
         $pressure = 1048576.0 - $adc;
@@ -224,7 +227,7 @@ trait BMP280API
     {
         $standby_period = BMP280StandbyTCS::tryFrom($value);
         if (is_null($standby_period)) {
-            throw new \ValueError("Standby Period '{$value}' not supported");
+            throw new ValueError("Standby Period '{$value}' not supported");
         }
 
         if ($this->_t_standby === $standby_period) {

@@ -2,28 +2,31 @@
 
 namespace DeptOfScrapyardRobotics\Sensors\BMP\BMP280;
 
-use BareMetal\IntegratedCircuit;
-use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Adapters\BMP280DataCarrier;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Concerns\BMP280API;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280IIRFilter;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280OpMode;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280Overscan;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280StandbyTCS;
-use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Exceptions\BMP280Exception;
-use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Factory\BMP280Factory;
+use DeptOfScrapyardRobotics\Sensors\BMP\BMPCarrierTransport;
+use DeptOfScrapyardRobotics\Sensors\BMP\BMPException;
+use DeptOfScrapyardRobotics\Sensors\BMP\Enums\BMPI2CAddress;
 use Exception;
-use RealityInterface\Sensors\Attributes\MeasuresBarometricPressure;
-use RealityInterface\Sensors\Attributes\MeasuresTemperature;
-use RealityInterface\Sensors\Contracts\Applied\Environmental\PressureSensor;
-use RealityInterface\Sensors\Contracts\Applied\Environmental\TemperatureSensor;
-use RealityInterface\Sensors\Enums\SensorType;
-use Waveforms\Carriers\I2C\I2C;
-use Waveforms\Carriers\SPI\SPI;
+use Fabricate\Contracts\Circuits\Attributes\IntegratedCircuit;
+use Fabricate\Contracts\Circuits\IntegratedCircuit as CircuitContract;
+use Fabricate\Contracts\NutsAndBolts\BootSequence;
+use Fabricate\Contracts\Sensors\Interfaces\Barometer;
+use Fabricate\Contracts\Sensors\Interfaces\Thermometer;
+use GeneralPurposeIO\I2C\I2C;
+use GeneralPurposeIO\I2C\I2CSlave;
+use GeneralPurposeIO\SPI\SPI;
+use GeneralPurposeIO\SPI\SPIDevice;
 
 /**
  * @property int $chip_id
+ * @property int $status
  * @property int $_ctrl_meas
  * @property int $_config
+ * @property int $config
  * @property float $altitude
  * @property BMP280IIRFilter $iir_filter
  * @property float $measurement_time_max
@@ -36,46 +39,30 @@ use Waveforms\Carriers\SPI\SPI;
  * @property int $standby_period
  * @property float $temperature
  */
-#[MeasuresTemperature(SensorType::TEMPERATURE)]
-#[MeasuresBarometricPressure(SensorType::RELATIVE_HUMIDITY)]
-class BMP280 extends IntegratedCircuit implements PressureSensor, TemperatureSensor
+#[IntegratedCircuit('I2C', 'SPI')]
+class BMP280 implements CircuitContract, BootSequence, Thermometer, Barometer
 {
     use BMP280API;
 
-    protected bool $booted = false;
-
-    protected float $sea_level_pressure = 1013.25;
-
-    protected int $hardwired_chip_id = 0x58;
-
-    protected int $hardwired_reset_command = 0xB6;
-
     /**
-     * @throws BMP280Exception
+     * @throws Exception
      */
     public function __construct(
-        protected readonly BMP280DataCarrier $carrier,
+        protected readonly BMPCarrierTransport $transport,
         protected BMP280IIRFilter $_iir_filter,
         protected BMP280Overscan $_overscan_temperature,
         protected BMP280Overscan $_overscan_pressure,
         protected BMP280StandbyTCS $_t_standby,
-        protected BMP280OpMode $_mode
+        protected BMP280OpMode $_mode,
+        bool $boot_now = false,
     ) {
-        $this->boot();
-    }
-
-    public function getTemperature(): ?float
-    {
-        return $this->getTemp();
-    }
-
-    public function getPressure(): ?float
-    {
-        return $this->readPressure();
+        if ($boot_now) {
+            $this->boot();
+        }
     }
 
     /**
-     * @throws BMP280Exception
+     * @throws BMPException
      */
     public function __get(string $name): mixed
     {
@@ -96,12 +83,12 @@ class BMP280 extends IntegratedCircuit implements PressureSensor, TemperatureSen
             'sea_level_pressure' => $this->getSeaLevelPressure(),
             'standby_period' => $this->getStandbyPeriod(),
             'temperature' => $this->getTemp(),
-            default => throw BMP280Exception::invalidProperty($name)
+            default => throw BMPException::invalidProperty($name, static::class),
         };
     }
 
     /**
-     * @throws BMP280Exception
+     * @throws BMPException
      */
     public function __set(string $name, mixed $value): void
     {
@@ -113,37 +100,122 @@ class BMP280 extends IntegratedCircuit implements PressureSensor, TemperatureSen
             'overscan_pressure' => $this->setOverscanPressure($value),
             'sea_level_pressure' => $this->setSeaLevelPressure($value),
             'standby_period' => $this->setStandbyPeriod($value),
-            default => throw BMP280Exception::invalidProperty($name)
+            default => throw BMPException::invalidProperty($name, static::class),
         };
     }
 
-    /**
-     * @throws BMP280Exception
-     */
-    protected function boot(): void
+    public function close(): void
     {
-        if (! $this->booted) {
-            if ($this->chip_id != $this->hardwired_chip_id) {
-                throw BMP280Exception::invalidChipId($this->chip_id);
-            }
-
-            $this->reset();
-            $this->readCoefficients();
-            $this->writeControlMeasure();
-            $this->writeConfig();
-
-            $this->booted = true;
-        }
+        $this->transport->close();
     }
 
     /**
      * @throws Exception
      */
-    public static function connection(string $driver): BMP280Factory
-    {
-        return new BMP280Factory(
-            I2C::connection($driver),
-            SPI::connection($driver)
+    public static function i2c(
+        string|int $device,
+        ?string $adapter = null,
+        int $slave = BMPI2CAddress::SDO_GROUNDED->value,
+        BMP280IIRFilter $iir_filter = BMP280IIRFilter::DISABLED,
+        BMP280Overscan $overscan_temperature = BMP280Overscan::OVERSCAN_X2,
+        BMP280Overscan $overscan_pressure = BMP280Overscan::OVERSCAN_X16,
+        BMP280StandbyTCS $t_standby = BMP280StandbyTCS::STANDBY_TC_0_5,
+        BMP280OpMode $mode = BMP280OpMode::SLEEP,
+        bool $boot_now = true,
+    ): static {
+        $i2c = I2C::adapter($adapter)
+            ->device($device)
+            ->bus()
+            ->slave($slave);
+
+        return static::fromI2CBus(
+            $i2c,
+            $iir_filter,
+            $overscan_temperature,
+            $overscan_pressure,
+            $t_standby,
+            $mode,
+            $boot_now,
+        );
+    }
+
+    /**
+     * @throws Exception
+     */
+    public static function fromI2CBus(
+        I2CSlave $i2c,
+        BMP280IIRFilter $iir_filter = BMP280IIRFilter::DISABLED,
+        BMP280Overscan $overscan_temperature = BMP280Overscan::OVERSCAN_X2,
+        BMP280Overscan $overscan_pressure = BMP280Overscan::OVERSCAN_X16,
+        BMP280StandbyTCS $t_standby = BMP280StandbyTCS::STANDBY_TC_0_5,
+        BMP280OpMode $mode = BMP280OpMode::SLEEP,
+        bool $boot_now = true,
+    ): static {
+        $transport = new BMPCarrierTransport(i2c: $i2c);
+
+        return new static(
+            $transport,
+            $iir_filter,
+            $overscan_temperature,
+            $overscan_pressure,
+            $t_standby,
+            $mode,
+            $boot_now,
+        );
+    }
+
+    /**
+     * @throws Exception
+     */
+    public static function spi(
+        string|int $device,
+        string|int $chip_select,
+        ?string $adapter = null,
+        BMP280IIRFilter $iir_filter = BMP280IIRFilter::DISABLED,
+        BMP280Overscan $overscan_temperature = BMP280Overscan::OVERSCAN_X2,
+        BMP280Overscan $overscan_pressure = BMP280Overscan::OVERSCAN_X16,
+        BMP280StandbyTCS $t_standby = BMP280StandbyTCS::STANDBY_TC_0_5,
+        BMP280OpMode $mode = BMP280OpMode::SLEEP,
+        bool $boot_now = true,
+    ): static {
+        $spi = SPI::adapter($adapter)->device($device)
+            ->mode(0)->speed(100000)->bus()
+            ->select($chip_select);
+
+        return static::fromSPIBus(
+            $spi,
+            $iir_filter,
+            $overscan_temperature,
+            $overscan_pressure,
+            $t_standby,
+            $mode,
+            $boot_now,
+        );
+    }
+
+    /**
+     * @throws BMPException
+     * @throws Exception
+     */
+    public static function fromSPIBus(
+        SPIDevice $spi,
+        BMP280IIRFilter $iir_filter = BMP280IIRFilter::DISABLED,
+        BMP280Overscan $overscan_temperature = BMP280Overscan::OVERSCAN_X2,
+        BMP280Overscan $overscan_pressure = BMP280Overscan::OVERSCAN_X16,
+        BMP280StandbyTCS $t_standby = BMP280StandbyTCS::STANDBY_TC_0_5,
+        BMP280OpMode $mode = BMP280OpMode::SLEEP,
+        bool $boot_now = true,
+    ): static {
+        $transport = new BMPCarrierTransport(spi: $spi);
+
+        return new static(
+            $transport,
+            $iir_filter,
+            $overscan_temperature,
+            $overscan_pressure,
+            $t_standby,
+            $mode,
+            $boot_now,
         );
     }
 }

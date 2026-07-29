@@ -5,22 +5,46 @@ namespace DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Concerns;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280OpCode;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280OpMode;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280ReadRegister;
-use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Exceptions\BMP280Exception;
+use DeptOfScrapyardRobotics\Sensors\BMP\BMPException;
+use Fabricate\Contracts\NutsAndBolts\BootScaffolding;
+use Fabricate\Contracts\Sensors\Enums\PressureUnit;
+use Fabricate\Contracts\Sensors\Enums\TemperatureUnit;
 
 trait BMP280InternalAPI
 {
+    use BootScaffolding;
+
     protected array $calibration = [];
 
     protected ?int $t_fine = null;
 
+    protected int $hardwired_chip_id = 0x58;
+
+    protected float $sea_level_pressure = 1013.25;
+
     protected function read(BMP280ReadRegister|BMP280OpCode $register_hex, int $length): array
     {
-        return $this->carrier->read($register_hex->value, $length);
+        return $this->transport->read($register_hex->value, $length);
     }
 
     protected function write(BMP280OpCode $register_hex, array $command_data = []): int
     {
-        return $this->carrier->write($register_hex->value, $command_data);
+        return $this->transport->write($register_hex->value, $command_data);
+    }
+
+    /**
+     * @throws BMPException
+     */
+    protected function _boot(): void
+    {
+        if ($this->chip_id != $this->hardwired_chip_id) {
+            throw BMPException::invalidChipId($this->chip_id, $this->hardwired_chip_id);
+        }
+
+        $this->reset();
+        $this->readCoefficients();
+        $this->writeControlMeasure();
+        $this->writeConfig();
     }
 
     protected function reset(): void
@@ -30,13 +54,13 @@ trait BMP280InternalAPI
     }
 
     /**
-     * @throws BMP280Exception
+     * @throws BMPException
      */
     protected function readCoefficients(): void
     {
         $block = $this->readCalibrationBlock();
         if (count($block) !== 24) {
-            throw BMP280Exception::invalidCalibrationLength(count($block));
+            throw BMPException::invalidCalibrationLength(count($block));
         }
 
         $this->calibration = $this->decodeCalibration($block);
@@ -123,5 +147,23 @@ trait BMP280InternalAPI
         }
 
         return $results;
+    }
+
+    public function measureTemp(TemperatureUnit $unit): float
+    {
+        return TemperatureUnit::CELSIUS->convert($this->getTemp(), $unit);
+    }
+
+    /**
+     * @throws BMPException
+     */
+    public function measurePressure(PressureUnit $unit): float
+    {
+        $hpa = $this->readPressure();
+        if (is_null($hpa)) {
+            throw BMPException::pressureDisabled();
+        }
+
+        return PressureUnit::HECTOPASCAL->convert($hpa, $unit);
     }
 }
