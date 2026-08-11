@@ -3,8 +3,8 @@
 namespace DeptOfScrapyardRobotics\Sensors\BMP;
 
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\BMP280;
-use Fabricate\NutsAndBolts\MagicAliases\Circuit;
 use Fabricate\NutsAndBolts\ServiceProvider;
+use GeneralPurposeIO\Core\MagicAliases\Circuit;
 
 class BMPServiceProvider extends ServiceProvider
 {

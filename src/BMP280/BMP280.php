@@ -11,15 +11,18 @@ use DeptOfScrapyardRobotics\Sensors\BMP\BMPCarrierTransport;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMPException;
 use DeptOfScrapyardRobotics\Sensors\BMP\Enums\BMPI2CAddress;
 use Exception;
-use Fabricate\Contracts\Circuits\Attributes\IntegratedCircuit;
-use Fabricate\Contracts\Circuits\IntegratedCircuit as CircuitContract;
-use Fabricate\Contracts\NutsAndBolts\BootSequence;
-use Fabricate\Contracts\Sensors\Interfaces\Barometer;
-use Fabricate\Contracts\Sensors\Interfaces\Thermometer;
+use GeneralPurposeIO\Circuits\Types\SensorIC;
+use GeneralPurposeIO\Contracts\Circuits\Attributes\IntegratedCircuit;
+use GeneralPurposeIO\Contracts\Circuits\Attributes\Pinout;
+use GeneralPurposeIO\Contracts\Circuits\BootSequence;
 use GeneralPurposeIO\I2C\I2C;
 use GeneralPurposeIO\I2C\I2CSlave;
 use GeneralPurposeIO\SPI\SPI;
 use GeneralPurposeIO\SPI\SPIDevice;
+use Waveforms\Contracts\Environment\MeasuresBarometricPressure;
+use Waveforms\Contracts\Environment\MeasuresTemperature;
+use Waveforms\Contracts\Sensors\Enums\PressureUnit;
+use Waveforms\Contracts\Sensors\Enums\TemperatureUnit;
 
 /**
  * @property int $chip_id
@@ -34,13 +37,14 @@ use GeneralPurposeIO\SPI\SPIDevice;
  * @property int $mode
  * @property int $overscan_temperature
  * @property int $overscan_pressure
- * @property ?float $pressure
+ * @property float $pressure
  * @property float $sea_level_pressure
  * @property int $standby_period
  * @property float $temperature
  */
 #[IntegratedCircuit('I2C', 'SPI')]
-class BMP280 implements CircuitContract, BootSequence, Thermometer, Barometer
+#[Pinout(['I2C' => ['driver', 'device', 'slave']], ['SPI' => ['driver', 'device', 'chip_select']])]
+class BMP280 extends SensorIC implements BootSequence, MeasuresTemperature, MeasuresBarometricPressure
 {
     use BMP280API;
 
@@ -79,10 +83,10 @@ class BMP280 implements CircuitContract, BootSequence, Thermometer, Barometer
             'mode' => $this->getMode(),
             'overscan_temperature' => $this->getOverscanTemperature(),
             'overscan_pressure' => $this->getOverscanPressure(),
-            'pressure' => $this->readPressure(),
+            'pressure' => $this->pressure(PressureUnit::HECTOPASCAL),
             'sea_level_pressure' => $this->getSeaLevelPressure(),
             'standby_period' => $this->getStandbyPeriod(),
-            'temperature' => $this->getTemp(),
+            'temperature' => $this->temperature(TemperatureUnit::CELSIUS),
             default => throw BMPException::invalidProperty($name, static::class),
         };
     }

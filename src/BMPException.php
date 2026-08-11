@@ -2,7 +2,7 @@
 
 namespace DeptOfScrapyardRobotics\Sensors\BMP;
 
-use Fabricate\Contracts\Circuits\CircuitException;
+use GeneralPurposeIO\Contracts\Circuits\CircuitException;
 
 class BMPException extends CircuitException
 {

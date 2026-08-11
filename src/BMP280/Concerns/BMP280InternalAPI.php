@@ -6,9 +6,9 @@ use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280OpCode;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280OpMode;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMP280\Enums\BMP280ReadRegister;
 use DeptOfScrapyardRobotics\Sensors\BMP\BMPException;
-use Fabricate\Contracts\NutsAndBolts\BootScaffolding;
-use Fabricate\Contracts\Sensors\Enums\PressureUnit;
-use Fabricate\Contracts\Sensors\Enums\TemperatureUnit;
+use GeneralPurposeIO\Contracts\Circuits\BootScaffolding;
+use Waveforms\Contracts\Sensors\Enums\PressureUnit;
+use Waveforms\Contracts\Sensors\Enums\TemperatureUnit;
 
 trait BMP280InternalAPI
 {
@@ -149,7 +149,10 @@ trait BMP280InternalAPI
         return $results;
     }
 
-    public function measureTemp(TemperatureUnit $unit): float
+    /**
+     * @throws BMPException
+     */
+    public function temperature(TemperatureUnit $unit = TemperatureUnit::CELSIUS): float
     {
         return TemperatureUnit::CELSIUS->convert($this->getTemp(), $unit);
     }
@@ -157,7 +160,7 @@ trait BMP280InternalAPI
     /**
      * @throws BMPException
      */
-    public function measurePressure(PressureUnit $unit): float
+    public function pressure(PressureUnit $unit = PressureUnit::HECTOPASCAL): float
     {
         $hpa = $this->readPressure();
         if (is_null($hpa)) {
@@ -166,4 +169,21 @@ trait BMP280InternalAPI
 
         return PressureUnit::HECTOPASCAL->convert($hpa, $unit);
     }
+
+    /** @deprecated Use {@see temperature()} */
+    public function measureTemp(TemperatureUnit $unit = TemperatureUnit::CELSIUS): float
+    {
+        return $this->temperature($unit);
+    }
+
+    /**
+     * @throws BMPException
+     *
+     * @deprecated Use {@see pressure()}
+     */
+    public function measurePressure(PressureUnit $unit = PressureUnit::HECTOPASCAL): float
+    {
+        return $this->pressure($unit);
+    }
 }
+
